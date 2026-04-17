@@ -1,43 +1,43 @@
-//GAURD FOR DEFINING CLASS 
 #ifndef USER_H
 #define USER_H
 
 #include <string>
+#include <iostream>
 
 enum class AccountStatus { ACTIVE, SUSPENDED, BANNED };
-typedef struct Date {
+
+struct Date {
     int day;
     int month;
     int year;
-};
+}; 
 
-//USER CLASS
-class User{
-    private :
-        //USER'S PERSONAL DETAILS
-        std:: string name ;
-        std:: string email;
-        std:: string password;
-        std:: string user_id;
-        //BUSINESS LOGIC ATTRIBUTES 
-        double accountBalance ;
-        int loyaltyPoints ;
-        bool isPrimeMember; 
-        //STATUS AND METADATA
-        Date creatdAt;
-        public:
-    // Constructor
-         User(std::string username, std::string email, std::string password);
+class User {
+protected:
+    std::string name;
+    std::string email;
+    std::string password;
+    std::string user_id;
+    double accountBalance; // Added for logic
+    AccountStatus status;  // Added for logic
+    Date createdAt;
 
-    // Getters and Setters (Encapsulation)
-        void depositFunds(double amount);
-        bool withdrawFunds(double amount);
-        void updateStatus(AccountStatus newStatus);
-    
-    // We only provide a getter for ID, no setter. 
-    // An ID should never change once assigned!
+public:
+    // Using Const Reference (The 'Move' Alternative)
+    User(const std::string& username, const std::string& email, const std::string& password);
+
+    // Business Logic
+    void depositFunds(double amount);
+    bool withdrawFunds(double amount);
+    void updateStatus(AccountStatus newStatus);
+
+    // Getters
     std::string getUserId() const { return user_id; }
-   
+    std::string getName() const { return name; }
+    double getBalance() const { return accountBalance; }
+
+    // Virtual destructor is mandatory for Inheritance
+    virtual ~User() = default; 
 };
 
-#endif //USER_H
+#endif

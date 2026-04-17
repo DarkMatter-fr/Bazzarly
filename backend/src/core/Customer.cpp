@@ -1,18 +1,27 @@
 #include <iostream>
-#include "Customer.h"
+#include "core/Customer.h"
+
+// Constructor
 Customer::Customer(std::string username, std::string email, std::string password) 
-    : User(username, email, password), accountBalance(0.0), loyaltyPoints(0), isPrimeMember(false) {
+    : User(username, email, password), 
+      loyaltyPoints(0), 
+      isPrimeMember(false) 
+{
+    // Set base class members here instead
+    this->accountBalance = 0.0; 
 }
 
-void Customer:: placeOrder(const Order& newOrder) {
+void Customer::placeOrder(const Order& newOrder) {
     orderHistory.push_back(newOrder);
 }
 
 void Customer::addFunds(double amount) {
-    accountBalance += amount;
+    if (amount > 0) {
+        accountBalance += amount;
+    }
 }
 
-bool Customer:: redeemLoyaltyPoints(int points){
+bool Customer::redeemLoyaltyPoints(int points) {
     if (loyaltyPoints >= points && points > 0) {
         loyaltyPoints -= points;
         return true;
@@ -24,9 +33,18 @@ void Customer::upgradeToPrime() {
     isPrimeMember = true;
 }
 
-void Customer :: displayOrderHistory () const{
-    std::cout << "Order History for "<< name << ":\n";
-    for (const auto& order : orderHistory) {
-        std::cout << "- " << order.toString() << "\n";
+void Customer::displayOrderHistory() const {
+    std::cout << "Order History for " << name << ":\n";
+    
+    if (orderHistory.empty()) {
+    
+        std::cout << "No orders found." << std::endl;
+        return;
+    }
+
+    for (const Order& order : orderHistory) {
+
+        std::cout << "- ";
+        order.displayReceipt(); 
     }
 }

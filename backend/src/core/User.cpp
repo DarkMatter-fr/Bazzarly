@@ -5,7 +5,7 @@ User::User(const std::string& username, const std::string& userEmail, const std:
     : name(username), email(userEmail), password(userPassword), accountBalance(0.0), status(AccountStatus::ACTIVE) {
     
     // Simple ID Generation
-    this->user_id = "USR-" + name.substr(0, 2) + "99";
+    this->user_id = "USR-" + (name.length() >= 2 ? name.substr(0, 2) : name) + "99";
 
     // Set Creation Date
     std::time_t t = std::time(0);

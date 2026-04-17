@@ -23,7 +23,7 @@ enum class OrderStatus {
 };
 
 class Order {
-private:
+protected  :
     std::string m_orderId;
     std::string m_customerId;
     std::vector<OrderItem> m_items; // List of products purchased
@@ -51,5 +51,7 @@ public:
     OrderStatus getStatus() const;
     void displayReceipt() const;
 };
+
+
 
 #endif // ORDER_H

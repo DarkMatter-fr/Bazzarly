@@ -5,7 +5,7 @@
 #include <cstdint> // For uint32_t
 
 class Product{
-    private :
+    protected  :
     std::string m_sku;           // Unique ID
     std::string m_name;
     double m_price;              // Price (Minimum 0.01)
@@ -18,25 +18,24 @@ public:
     // --- Business Logic (The Setters) ---
     
     // Ensures price never drops below 0.01
-    void setPrice(double newPrice);
+    virtual void setPrice(double newPrice);
     
     // Checks if enough stock exists before deducting
-    bool reduceStock(uint32_t amount);
+    virtual bool reduceStock(uint32_t amount);
     
     // For shopkeepers to add inventory
-    void restock(uint32_t amount);
+    virtual void restock(uint32_t amount);
 
     // --- Accessors (The Getters) ---
     // All marked 'const' because they don't change the object's state
-    std::string getSku() const;
-    std::string getName() const;
-    double getPrice() const;
-    uint32_t getStock() const;
+    virtual std::string getSku() const;
+    virtual std::string getName() const;
+    virtual double getPrice() const;
+    virtual uint32_t getStock() const;
 
     // Display info to console
-    void displayInfo() const;
+    virtual void getInfo() const;
 
-        
 };
 
 #endif //PRODUCT_H
