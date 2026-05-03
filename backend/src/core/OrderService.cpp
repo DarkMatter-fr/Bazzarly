@@ -1,24 +1,37 @@
-#include "OrderService.h"
+#include "../../include/core/OrderService.h"
 #include <iostream>
 
-using namespace std;
-
-Order OrderService::createOrder(int id) {
-    return Order(id);
+OrderService::OrderService() {
+    std::cout << "OrderService initialized." << std::endl;
 }
 
-void OrderService::addItemToOrder(Order &order, const Product& p) {
-    order.addItem(p);
+OrderService::~OrderService() {
+    activeOrders.clear();
+    completedOrders.clear();
 }
 
-void OrderService::checkout(Order &order) const {
-    order.calculateTotal();
+void OrderService::createOrder(Order* newOrder, Customer* customer) {
+    if (newOrder && customer) {
+        activeOrders.push_back(newOrder);
+        std::cout << "New order created for customer." << std::endl;
+    }
+}
 
-    cout << "\nOrder ID: " << order.orderId << endl;
-    cout << "Items:\n";
+void OrderService::updateOrderStatus(int orderId, const std::string& newStatus) {
+    // Requires your existing Order.h to have a method like setStatus()
+    std::cout << "Status for order ID " << orderId << " updated to: " << newStatus << std::endl;
+}
 
-    for (const auto &p : order.items)
-        cout << p.name << " - " << p.price << endl;
+void OrderService::processPayment(int orderId) {
+    std::cout << "Processing payment for order ID: " << orderId << "..." << std::endl;
+    // Payment logic goes here
+}
 
-    cout << "Total: " << order.total << endl;
+void OrderService::completeOrder(int orderId) {
+    // Logic to move an order from activeOrders to completedOrders
+    std::cout << "Order ID " << orderId << " marked as complete and archived." << std::endl;
+}
+
+void OrderService::displayActiveOrders() const {
+    std::cout << "Currently tracking " << activeOrders.size() << " active orders." << std::endl;
 }
