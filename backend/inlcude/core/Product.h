@@ -11,9 +11,11 @@ class Product{
     double m_price;              // Price (Minimum 0.01)
     uint32_t m_stockQuantity;    // Unsigned to prevent negative stock
 
+    std::string m_owner;         // Username of Shopkeeper who listed it
+
 public:
     // Constructor using Member Initializer List (Implementation will be in .cpp)
-    Product(std::string sku, std::string name, double price, uint32_t stock);
+    Product(std::string sku, std::string name, double price, uint32_t stock, std::string owner);
 
     // --- Business Logic (The Setters) ---
     
@@ -32,6 +34,7 @@ public:
     virtual std::string getName() const;
     virtual double getPrice() const;
     virtual uint32_t getStock() const;
+    virtual std::string getOwner() const;
 
     // Display info to console
     virtual void getInfo() const;
