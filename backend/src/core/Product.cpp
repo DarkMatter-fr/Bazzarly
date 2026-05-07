@@ -1,7 +1,9 @@
 #include "../../inlcude/core/Product.h"
 #include <iostream>
 
-Product::Product(std::string sku, std::string name, double price, uint32_t stock, std::string owner)
+using namespace std;
+
+Product::Product(string sku, string name, double price, uint32_t stock, string owner)
     : m_sku(sku), m_name(name), m_price(price >= 0.01 ? price : 0.01), m_stockQuantity(stock), m_owner(owner) {}
 
 void Product::setPrice(double newPrice) {
@@ -15,7 +17,7 @@ bool Product::reduceStock(uint32_t amount) {
         m_stockQuantity -= amount;
         return true;
     }
-    std::cout << "Insufficient stock for product: " << m_name << std::endl;
+    cout << "Insufficient stock for product: " << m_name << endl;
     return false;
 }
 
@@ -23,15 +25,15 @@ void Product::restock(uint32_t amount) {
     m_stockQuantity += amount;
 }
 
-std::string Product::getSku() const { return m_sku; }
-std::string Product::getName() const { return m_name; }
+string Product::getSku() const { return m_sku; }
+string Product::getName() const { return m_name; }
 double Product::getPrice() const { return m_price; }
 uint32_t Product::getStock() const { return m_stockQuantity; }
-std::string Product::getOwner() const { return m_owner; }
+string Product::getOwner() const { return m_owner; }
 
 void Product::getInfo() const {
-    std::cout << "SKU: " << m_sku 
+    cout << "SKU: " << m_sku 
               << " | Name: " << m_name 
               << " | Price: $" << m_price 
-              << " | Stock: " << m_stockQuantity << std::endl;
+              << " | Stock: " << m_stockQuantity << endl;
 }

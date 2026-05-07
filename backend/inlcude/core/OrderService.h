@@ -21,6 +21,7 @@ public:
     void completeOrder(int orderId);
     
     void displayActiveOrders() const;
+    const std::vector<Order*>& getActiveOrders() const { return activeOrders; }
 };
 
 #endif // ORDER_SERVICE_H

@@ -1,13 +1,14 @@
 #include <iostream>
-#include "core/Customer.h"
+#include "../../inlcude/core/Customer.h"
+
+using namespace std;
 
 // Constructor
-Customer::Customer(std::string username, std::string email, std::string password) 
+Customer::Customer(string username, string email, string password) 
     : User(username, email, password), 
       loyaltyPoints(0), 
       isPrimeMember(false) 
 {
-    // Set base class members here instead
     this->accountBalance = 0.0; 
 }
 
@@ -34,17 +35,15 @@ void Customer::upgradeToPrime() {
 }
 
 void Customer::displayOrderHistory() const {
-    std::cout << "Order History for " << name << ":\n";
+    cout << "Order History for " << name << ":\n";
     
     if (orderHistory.empty()) {
-    
-        std::cout << "No orders found." << std::endl;
+        cout << "No orders found." << endl;
         return;
     }
 
     for (const Order& order : orderHistory) {
-
-        std::cout << "- ";
+        cout << "- ";
         order.displayReceipt(); 
     }
 }

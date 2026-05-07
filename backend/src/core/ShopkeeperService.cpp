@@ -1,33 +1,45 @@
-#include "../../include/core/ShopkeeperService.h"
+#include "../../inlcude/core/ShopkeeperService.h"
 #include <iostream>
 #include <algorithm>
 
+using namespace std;
+
 ShopkeeperService::ShopkeeperService() {
-    std::cout << "ShopkeeperService initialized." << std::endl;
+    cout << "ShopkeeperService initialized." << endl;
 }
 
 ShopkeeperService::~ShopkeeperService() {
-    // Inventory cleanup logic if the service owns the pointers
     inventory.clear();
 }
 
 void ShopkeeperService::addProductToInventory(Product* product) {
     if (product != nullptr) {
         inventory.push_back(product);
-        std::cout << "Product successfully added to inventory." << std::endl;
+        cout << "Product successfully added to inventory." << endl;
     }
 }
 
 void ShopkeeperService::removeProductFromInventory(int productId) {
-    // Placeholder logic: In a real scenario, you'd match the productId against the Product objects
-    std::cout << "Attempting to remove product ID: " << productId << " from inventory." << std::endl;
+    cout << "Attempting to remove product ID: " << productId << " from inventory." << endl;
 }
 
 void ShopkeeperService::updateProductInventory(int productId, int additionalStock) {
-    std::cout << "Stock updated for product ID: " << productId << " by " << additionalStock << " units." << std::endl;
+    cout << "Stock updated for product ID: " << productId << " by " << additionalStock << " units." << endl;
+}
+
+void ShopkeeperService::updateProductPrice(const string& sku, double newPrice) {
+    for (Product* product : inventory) {
+        if (product != nullptr && product->getSku() == sku) {
+            product->setPrice(newPrice);
+            cout << "Successfully updated price for " << product->getName() 
+                      << " (SKU: " << sku << ") to $" << newPrice << endl;
+            return;
+        }
+    }
+    cout << "Error: Product with SKU " << sku << " not found in inventory." << endl;
 }
 
 void ShopkeeperService::generateInventoryReport() const {
-    std::cout << "--- Inventory Report ---" << std::endl;
-    std::cout << "Total unique products managed: " << inventory.size() << std::endl;
+    cout << "--- Inventory Report ---" << endl;
+    cout << "Total unique products managed: " << inventory.size() << endl;
 }

@@ -49,11 +49,25 @@ window.logout = function() {
   showPage('home');
 }
 
-// LOAD PRODUCTS
 async function loadProducts() {
   try {
     const res = await fetch(`${API_BASE}/products`);
-    const data = await res.json();
+    const text = await res.text();
+    if (!text.trim()) { displayProducts([]); return; }
+    
+    // Parse our custom text format: id;name;price;stock;owner | id;name...
+    const data = text.split('|').map(str => {
+      const parts = str.split(';');
+      return { 
+          id: parts[0], 
+          name: parts[1], 
+          price: parseFloat(parts[2]), 
+          stock: parseInt(parts[3]), 
+          owner: parts[4], 
+          img: "https://via.placeholder.com/200" 
+      };
+    });
+    
     displayProducts(data);
   } catch (err) {
     console.error(err);
@@ -156,19 +170,24 @@ window.checkout = async function() {
   }
   
   try {
-    const skus = cart.map(p => p.id);
+    const skus = cart.map(p => p.id).join(',');
+    const total = cart.reduce((sum, p) => sum + p.price, 0);
+    const payload = `${token};${total};${skus}`;
+    
     const res = await fetch(`${API_BASE}/checkout`, {
       method: "POST",
-      body: JSON.stringify({ token: token, total: window.cartTotal, skus: skus })
+      body: payload
     });
-    const data = await res.json();
-    if (res.ok) {
-      alert("Payment Successful! 🎉 Order ID: " + data.order_id);
+    const text = await res.text();
+    const parts = text.split(';');
+    
+    if (res.ok && parts[0] === 'SUCCESS') {
+      alert("Payment Successful! 🎉 Order ID: " + parts[1]);
       cart = [];
       document.getElementById("cartCount").innerText = 0;
       showPage('home');
     } else {
-      alert("Checkout failed: " + data.error);
+      alert("Checkout failed.");
     }
   } catch(e) {
     alert("Network error during checkout.");
@@ -182,19 +201,21 @@ window.doLogin = async function() {
   try {
     const res = await fetch(`${API_BASE}/login`, {
       method: "POST",
-      body: JSON.stringify({ username: u, password: p })
+      body: `${u};${p}`
     });
-    const data = await res.json();
-    if (res.ok) {
-      token = data.token;
-      role = data.role;
+    const text = await res.text();
+    const parts = text.split(';');
+    
+    if (res.ok && parts[0] === 'SUCCESS') {
+      token = parts[1];
+      role = parts[2];
       localStorage.setItem('token', token);
       localStorage.setItem('role', role);
       updateNavigation();
-      loadProducts(); // Refresh products to hide/show Add to Cart button based on role
+      loadProducts();
       showPage('home');
     } else {
-      alert("Login failed: " + data.error);
+      alert("Login failed.");
     }
   } catch(e) {
     alert("Error logging in. Is the backend running?");
@@ -209,9 +230,10 @@ window.doRegister = async function() {
   try {
     const res = await fetch(`${API_BASE}/register`, {
       method: "POST",
-      body: JSON.stringify({ username: u, password: p, role: r })
+      body: `${u};${p};${r}`
     });
-    if (res.ok) {
+    const text = await res.text();
+    if (res.ok && text === 'SUCCESS') {
       alert("Registration successful! You can now log in.");
     } else {
       alert("Registration failed.");
@@ -234,17 +256,18 @@ window.addProduct = async function() {
   try {
     const res = await fetch(`${API_BASE}/products`, {
       method: "POST",
-      body: JSON.stringify({ token: token, name: n, price: p })
+      body: `${token};${n};${p}`
     });
-    const data = await res.json();
-    if (res.ok) {
-      alert("Product Listed! SKU: " + data.sku);
+    const text = await res.text();
+    const parts = text.split(';');
+    if (res.ok && parts[0] === 'SUCCESS') {
+      alert("Product Listed! SKU: " + parts[1]);
       document.getElementById('prod-name').value = '';
       document.getElementById('prod-price').value = '';
       loadProducts();
       showPage('home');
     } else {
-      alert("Failed to add product: " + data.error);
+      alert("Failed to add product.");
     }
   } catch(e) {
     alert("Network error while adding product.");

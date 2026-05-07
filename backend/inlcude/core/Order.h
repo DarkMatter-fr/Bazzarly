@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
-#include "core/Product.h" // We need the Product shape
+#include "Product.h" // We need the Product shape
 
 
 struct OrderItem {
@@ -49,6 +49,8 @@ public:
     // --- Accessors (Const) ---
     double getTotalAmount() const;
     OrderStatus getStatus() const;
+    std::string getOrderId() const { return m_orderId; }
+    std::string getCustomerId() const { return m_customerId; }
     void displayReceipt() const;
 };
 

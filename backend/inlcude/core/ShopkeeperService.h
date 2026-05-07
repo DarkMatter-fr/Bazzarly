@@ -18,6 +18,8 @@ public:
     void addProductToInventory(Product* product);
     void removeProductFromInventory(int productId);
     void updateProductInventory(int productId, int additionalStock);
+    void updateProductPrice(const std::string& sku, double newPrice);
+    const std::vector<Product*>& getInventory() const { return inventory; }
     
     // Shopkeeper specific metrics
     void generateInventoryReport() const;

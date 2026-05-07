@@ -1,225 +1,241 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <winsock2.h>
 #include <windows.h>
-#include <sstream>
-#include "../inlcude/json.hpp"
+#define ASIO_STANDALONE
+#include "../inlcude/asio.hpp"
 #include "../inlcude/core/Product.h"
+#include "../inlcude/core/User.h"
+#include "../inlcude/core/Customer.h"
+#include "../inlcude/core/Order.h"
+#include "../inlcude/core/OrderService.h"
+#include "../inlcude/core/ShopkeeperService.h"
 
-#pragma comment(lib, "ws2_32.lib")
+using namespace std;
+using asio::ip::tcp;
 
-using json = nlohmann::json;
-
-std::vector<Product> products;
-CRITICAL_SECTION products_mutex;
-
-struct UserData {
-    std::string id;
-    std::string username;
-    std::string password;
-    std::string token;
-    std::string role; // "customer" or "shopkeeper"
-};
-std::vector<UserData> users;
-CRITICAL_SECTION users_mutex;
-
-struct OrderData {
-    std::string order_id;
-    std::string username;
-    double total_amount;
-    std::string status; 
-};
-std::vector<OrderData> orders;
-CRITICAL_SECTION orders_mutex;
-
-void init_db() {
-    // Database is now initially empty so shopkeepers must list items.
+// --- CUSTOM PLAIN-TEXT PARSER ---
+vector<string> split_string(const string& str, char delim) {
+    vector<string> tokens;
+    string token;
+    istringstream tokenStream(str);
+    while (getline(tokenStream, token, delim)) {
+        tokens.push_back(token);
+    }
+    return tokens;
 }
 
-std::string make_response(int status_code, const std::string& status_text, const std::string& body) {
-    std::string response = "HTTP/1.1 " + std::to_string(status_code) + " " + status_text + "\r\n";
+
+ShopkeeperService globalShopService;
+CRITICAL_SECTION products_mutex;
+
+vector<User*> users;
+CRITICAL_SECTION users_mutex;
+
+OrderService globalOrderService;
+CRITICAL_SECTION orders_mutex;
+
+
+string make_response(int status_code, const string& status_text, const string& body) {
+    string response = "HTTP/1.1 " + to_string(status_code) + " " + status_text + "\r\n";
     response += "Access-Control-Allow-Origin: *\r\n";
     response += "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n";
     response += "Access-Control-Allow-Headers: Content-Type, Authorization\r\n";
-    response += "Content-Type: application/json\r\n";
-    response += "Content-Length: " + std::to_string(body.length()) + "\r\n";
+    response += "Content-Type: text/plain\r\n";
+    response += "Content-Length: " + to_string(body.length()) + "\r\n";
     response += "\r\n";
     response += body;
     return response;
 }
 
-std::string handle_request(const std::string& method, const std::string& path, const std::string& body) {
+string handle_request(const string& method, const string& path, const string& body) {
     if (method == "OPTIONS") {
         return make_response(204, "No Content", "");
     }
 
     if (method == "GET" && path == "/products") {
         EnterCriticalSection(&products_mutex);
-        json j_products = json::array();
-        for (const auto& p : products) {
-            j_products.push_back({
-                {"id", p.getSku()}, 
-                {"name", p.getName()}, 
-                {"price", p.getPrice()},
-                {"stock", p.getStock()},
-                {"owner", p.getOwner()},
-                {"img", "https://via.placeholder.com/200"}
-            });
+        string res_body = "";
+        const auto& inventory = globalShopService.getInventory();
+        for (size_t i = 0; i < inventory.size(); ++i) {
+            auto* p = inventory[i];
+            // Format: sku;name;price;stock;owner
+            res_body += p->getSku() + ";" + p->getName() + ";" + 
+                        to_string(p->getPrice()) + ";" + 
+                        to_string(p->getStock()) + ";" + p->getOwner();
+            if (i < inventory.size() - 1) res_body += "|";
         }
-        std::string res_body = j_products.dump();
         LeaveCriticalSection(&products_mutex);
         return make_response(200, "OK", res_body);
     }
     
     if (method == "POST" && path == "/register") {
-        try {
-            auto j = json::parse(body);
-            std::string username = j["username"];
-            std::string password = j["password"];
-            std::string role = j.value("role", "customer");
-            
-            EnterCriticalSection(&users_mutex);
-            UserData newUser{"U" + std::to_string(users.size()+1), username, password, "", role};
-            users.push_back(newUser);
-            LeaveCriticalSection(&users_mutex);
-            
-            return make_response(200, "OK", "{\"status\": \"registered\"}");
-        } catch(...) {
-            return make_response(400, "Bad Request", "{\"error\": \"invalid json\"}");
+        vector<string> parts = split_string(body, ';');
+        if (parts.size() < 3) return make_response(400, "Bad Request", "ERROR");
+        
+        string username = parts[0];
+        string password = parts[1];
+        string role = parts[2];
+        
+        EnterCriticalSection(&users_mutex);
+        User* newUser;
+        if (role == "customer") {
+            newUser = new Customer(username, username + "@example.com", password);
+        } else {
+            newUser = new User(username, username + "@example.com", password);
         }
+        newUser->setRole(role);
+        users.push_back(newUser);
+        LeaveCriticalSection(&users_mutex);
+        
+        return make_response(200, "OK", "SUCCESS");
     }
 
     if (method == "POST" && path == "/login") {
-        try {
-            auto j = json::parse(body);
-            std::string username = j["username"];
-            std::string password = j["password"];
-            
-            EnterCriticalSection(&users_mutex);
-            std::string token = "";
-            std::string role = "";
-            for (auto& u : users) {
-                if (u.username == username && u.password == password) {
-                    u.token = "token_" + u.username;
-                    token = u.token;
-                    role = u.role;
-                    break;
-                }
+        vector<string> parts = split_string(body, ';');
+        if (parts.size() < 2) return make_response(400, "Bad Request", "ERROR");
+        
+        string username = parts[0];
+        string password = parts[1];
+        
+        EnterCriticalSection(&users_mutex);
+        string token = "";
+        string role = "";
+        for (auto* u : users) {
+            if (u->getName() == username && u->getPassword() == password) {
+                u->setToken("token_" + u->getName());
+                token = u->getToken();
+                role = u->getRole();
+                break;
             }
-            LeaveCriticalSection(&users_mutex);
-            
-            if (token != "") {
-                return make_response(200, "OK", "{\"token\": \"" + token + "\", \"role\": \"" + role + "\"}");
-            } else {
-                return make_response(401, "Unauthorized", "{\"error\": \"invalid credentials\"}");
-            }
-        } catch(...) {
-            return make_response(400, "Bad Request", "{\"error\": \"invalid json\"}");
+        }
+        LeaveCriticalSection(&users_mutex);
+        
+        if (token != "") {
+            return make_response(200, "OK", "SUCCESS;" + token + ";" + role);
+        } else {
+            return make_response(401, "Unauthorized", "ERROR");
         }
     }
 
     if (method == "POST" && path == "/checkout") {
-        try {
-            auto j = json::parse(body);
-            std::string token = j.value("token", "");
-            double total = j.value("total", 0.0);
-            
-            if (token == "") return make_response(401, "Unauthorized", "{\"error\": \"missing token\"}");
-            
-            EnterCriticalSection(&products_mutex);
-            if (j.contains("skus") && j["skus"].is_array()) {
-                for (const auto& sku_val : j["skus"]) {
-                    std::string sku_str = sku_val.get<std::string>();
-                    for (auto& p : products) {
-                        if (p.getSku() == sku_str && p.getStock() > 0) {
-                            p.reduceStock(1);
-                            break;
-                        }
+        vector<string> parts = split_string(body, ';');
+        if (parts.size() < 3) return make_response(400, "Bad Request", "ERROR");
+        
+        string token = parts[0];
+        // parts[1] is total
+        vector<string> skus = split_string(parts[2], ',');
+        
+        EnterCriticalSection(&products_mutex);
+        if (skus.size() > 0) {
+            for (const auto& sku_str : skus) {
+                if (sku_str.empty()) continue;
+                for (auto* p : globalShopService.getInventory()) {
+                    if (p->getSku() == sku_str && p->getStock() > 0) {
+                        p->reduceStock(1);
+                        break;
                     }
                 }
             }
-            LeaveCriticalSection(&products_mutex);
-
-            EnterCriticalSection(&orders_mutex);
-            OrderData order{"O" + std::to_string(orders.size()+1), token, total, "Paid"};
-            orders.push_back(order);
-            LeaveCriticalSection(&orders_mutex);
-            
-            return make_response(200, "OK", "{\"status\": \"payment successful\", \"order_id\": \"" + order.order_id + "\"}");
-        } catch(...) {
-            return make_response(400, "Bad Request", "{\"error\": \"invalid json\"}");
         }
+        LeaveCriticalSection(&products_mutex);
+
+        EnterCriticalSection(&orders_mutex);
+        Order* newOrder = new Order("O" + to_string(globalOrderService.getActiveOrders().size()+1), token);
+        
+        Customer* buyingCustomer = nullptr;
+        EnterCriticalSection(&users_mutex);
+        for(auto* u : users) {
+            if(u->getToken() == token) { buyingCustomer = dynamic_cast<Customer*>(u); break; }
+        }
+        LeaveCriticalSection(&users_mutex);
+
+        if (!buyingCustomer) {
+            delete newOrder;
+            LeaveCriticalSection(&orders_mutex);
+            return make_response(401, "Unauthorized", "ERROR");
+        }
+        
+        globalOrderService.createOrder(newOrder, buyingCustomer);
+        string created_order_id = newOrder->getOrderId();
+        LeaveCriticalSection(&orders_mutex);
+        
+        return make_response(200, "OK", "SUCCESS;" + created_order_id);
     }
 
     if (method == "POST" && path == "/products") {
-        try {
-            auto j = json::parse(body);
-            std::string token = j.value("token", "");
-            std::string name = j.value("name", "");
-            double price = j.value("price", 0.0);
-            
-            if (token == "") return make_response(401, "Unauthorized", "{\"error\": \"missing token\"}");
-            
-            bool is_shopkeeper = false;
-            std::string shopkeeper_username = "";
-            EnterCriticalSection(&users_mutex);
-            for (auto& u : users) {
-                if (u.token == token && u.role == "shopkeeper") {
-                    is_shopkeeper = true;
-                    shopkeeper_username = u.username;
-                    break;
-                }
+        vector<string> parts = split_string(body, ';');
+        if (parts.size() < 3) return make_response(400, "Bad Request", "ERROR");
+        
+        string token = parts[0];
+        string name = parts[1];
+        double price = stod(parts[2]);
+        
+        bool is_shopkeeper = false;
+        string shopkeeper_username = "";
+        EnterCriticalSection(&users_mutex);
+        for (auto* u : users) {
+            if (u->getToken() == token && u->getRole() == "shopkeeper") {
+                is_shopkeeper = true;
+                shopkeeper_username = u->getName();
+                break;
             }
-            LeaveCriticalSection(&users_mutex);
-
-            if (!is_shopkeeper) {
-                return make_response(403, "Forbidden", "{\"error\": \"Only shopkeepers can add products.\"}");
-            }
-
-            EnterCriticalSection(&products_mutex);
-            std::string sku = "SKU" + std::to_string(products.size() + 1);
-            products.push_back(Product(sku, name, price, 100, shopkeeper_username)); // Default stock 100
-            LeaveCriticalSection(&products_mutex);
-
-            return make_response(200, "OK", "{\"status\": \"product added\", \"sku\": \"" + sku + "\"}");
-        } catch(...) {
-            return make_response(400, "Bad Request", "{\"error\": \"invalid json\"}");
         }
+        LeaveCriticalSection(&users_mutex);
+
+        if (!is_shopkeeper) {
+            return make_response(403, "Forbidden", "ERROR");
+        }
+
+        EnterCriticalSection(&products_mutex);
+        string sku = "SKU" + to_string(globalShopService.getInventory().size() + 1);
+        Product* newProduct = new Product(sku, name, price, 100, shopkeeper_username);
+        globalShopService.addProductToInventory(newProduct);
+        LeaveCriticalSection(&products_mutex);
+
+        return make_response(200, "OK", "SUCCESS;" + sku);
     }
 
     return make_response(404, "Not Found", "{\"error\": \"Not Found\"}");
 }
 
-DWORD WINAPI ClientHandler(LPVOID lpParam) {
-    SOCKET clientSocket = (SOCKET)lpParam;
-    char buffer[4096];
-    int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-    if (bytesReceived > 0) {
-        buffer[bytesReceived] = '\0';
-        std::string request(buffer, bytesReceived);
+DWORD WINAPI handle_session(LPVOID lpParam) {
+    tcp::socket* socket = (tcp::socket*)lpParam;
+    try {
+        char buffer[4096];
+        asio::error_code error;
+        size_t length = socket->read_some(asio::buffer(buffer), error);
         
-        // Parse request line
-        size_t first_space = request.find(' ');
-        size_t second_space = request.find(' ', first_space + 1);
-        if (first_space != std::string::npos && second_space != std::string::npos) {
-            std::string method = request.substr(0, first_space);
-            std::string path = request.substr(first_space + 1, second_space - first_space - 1);
-            
-            // Extract body (very naive)
-            std::string body = "";
-            size_t body_pos = request.find("\r\n\r\n");
-            if (body_pos != std::string::npos) {
-                body = request.substr(body_pos + 4);
-                // In a real server, we should read 'Content-Length' and keep recv'ing if body is incomplete.
-                // For this demo, assuming 4096 bytes is enough for the entire request + body.
-            }
-
-            std::string response = handle_request(method, path, body);
-            send(clientSocket, response.c_str(), response.length(), 0);
+        if (error == asio::error::eof) {
+            delete socket;
+            return 0;
+        } else if (error) {
+            throw asio::system_error(error);
         }
+
+        if (length > 0) {
+            string request(buffer, length);
+            
+            size_t first_space = request.find(' ');
+            size_t second_space = request.find(' ', first_space + 1);
+            if (first_space != string::npos && second_space != string::npos) {
+                string method = request.substr(0, first_space);
+                string path = request.substr(first_space + 1, second_space - first_space - 1);
+                
+                string body = "";
+                size_t body_pos = request.find("\r\n\r\n");
+                if (body_pos != string::npos) {
+                    body = request.substr(body_pos + 4);
+                }
+
+                string response = handle_request(method, path, body);
+                asio::write(*socket, asio::buffer(response));
+            }
+        }
+    } catch (exception& e) {
+        cerr << "Exception in thread: " << e.what() << "\n";
     }
-    closesocket(clientSocket);
+    delete socket;
     return 0;
 }
 
@@ -227,51 +243,24 @@ int main() {
     InitializeCriticalSection(&products_mutex);
     InitializeCriticalSection(&users_mutex);
     InitializeCriticalSection(&orders_mutex);
-    init_db();
 
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        return 1;
-    }
+    try {
+        asio::io_context io_context;
+        tcp::acceptor acceptor(io_context, tcp::endpoint(tcp::v4(), 18080));
 
-    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == INVALID_SOCKET) {
-        WSACleanup();
-        return 1;
-    }
+        cout << "Starting Bazarly Server with ASIO on http://localhost:18080..." << endl;
+        cout << "Automatically launching the frontend in your browser..." << endl;
+        system("start ..\\frontend\\index.html");
 
-    sockaddr_in serverAddr;
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(18080);
-
-    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        std::cerr << "Error: Port 18080 is already in use or bind failed!" << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
-        std::cerr << "Error: Listen failed!" << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    std::cout << "Starting Bazarly Server on http://localhost:18080..." << std::endl;
-    std::cout << "Automatically launching the frontend in your browser..." << std::endl;
-    system("start ..\\frontend\\index.html");
-
-    while (true) {
-        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
-        if (clientSocket != INVALID_SOCKET) {
-            CreateThread(NULL, 0, ClientHandler, (LPVOID)clientSocket, 0, NULL);
+        while (true) {
+            tcp::socket* socket = new tcp::socket(io_context);
+            acceptor.accept(*socket);
+            CreateThread(NULL, 0, handle_session, (LPVOID)socket, 0, NULL);
         }
+    } catch (exception& e) {
+        cerr << "Exception: " << e.what() << "\n";
     }
 
-    closesocket(serverSocket);
-    WSACleanup();
     DeleteCriticalSection(&products_mutex);
     DeleteCriticalSection(&users_mutex);
     DeleteCriticalSection(&orders_mutex);

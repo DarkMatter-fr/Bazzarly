@@ -1,51 +1,34 @@
-#include "../../include/core/Order.h"
-#include "../../include/core/Product.h" // Needed to calculate totals
+#include "../../inlcude/core/Order.h"
 #include <iostream>
 
-// Constructor implementation
-Order::Order(int id, int custId)
-    : orderId(id), customerId(custId), totalAmount(0.0f), status("Pending") {}
+using namespace std;
 
-Order::~Order() {
-    // Note: We don't delete products here as they are managed by the Shopkeeper/Inventory
-    orderItems.clear(); 
+Order::Order(string orderId, string customerId)
+    : m_orderId(orderId), m_customerId(customerId), m_totalAmount(0.0), m_status(OrderStatus::Pending) {}
+
+void Order::addItem(const Product& product, uint32_t quantity) {
+    OrderItem item{product.getSku(), product.getName(), product.getPrice(), quantity};
+    m_items.push_back(item);
+    m_totalAmount += (product.getPrice() * quantity);
 }
 
-// Getters
-int Order::getOrderId() const { return orderId; }
-int Order::getCustomerId() const { return customerId; }
-float Order::getTotalAmount() const { return totalAmount; }
-std::string Order::getStatus() const { return status; }
-
-// Setters and Logic
-void Order::setStatus(const std::string& newStatus) {
-    status = newStatus;
+void Order::processPayment() {
+    m_status = OrderStatus::Paid;
 }
 
-void Order::addProductToOrder(Product* product, int quantity) {
-    if (product != nullptr && product->getStock() >= quantity) {
-        // In a real system, you might need an OrderItem struct to hold product + quantity.
-        // For simplicity based on headers, we add the product pointer.
-        orderItems.push_back(product);
-        totalAmount += (product->getPrice() * quantity);
-        product->reduceStock(quantity);
-        std::cout << "Added " << quantity << "x " << product->getName() << " to order." << std::endl;
-    } else {
-         std::cout << "Failed to add product. Out of stock or invalid product." << std::endl;
-    }
+void Order::updateStatus(OrderStatus newStatus) {
+    m_status = newStatus;
 }
 
-void Order::calculateTotal() {
-    totalAmount = 0.0f;
-    for (const auto& product : orderItems) {
-        totalAmount += product->getPrice();
-    }
+double Order::getTotalAmount() const {
+    return m_totalAmount;
 }
 
-void Order::displayOrderSummary() const {
-    std::cout << "--- Order Summary ---" << std::endl;
-    std::cout << "Order ID: " << orderId << " | Status: " << status << std::endl;
-    std::cout << "Customer ID: " << customerId << std::endl;
-    std::cout << "Items in order: " << orderItems.size() << std::endl;
-    std::cout << "Total Amount: $" << totalAmount << std::endl;
+OrderStatus Order::getStatus() const {
+    return m_status;
+}
+
+void Order::displayReceipt() const {
+    cout << "Receipt for Order: " << m_orderId << "\n";
+    cout << "Total: $" << m_totalAmount << "\n";
 }
